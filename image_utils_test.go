@@ -1,7 +1,7 @@
 package passphoto
 
 import (
-	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -20,9 +20,9 @@ func TestGenCanvas(t *testing.T) {
 }
 
 func TestReadJpg(t *testing.T) {
-	gopath := "/home/chaorenkindle/go"
+	// gopath := "/home/chaorenkindle/go"
+	gopath := os.Getenv("GOPATH")
 	testImagePath := filepath.Join(gopath,
 		"src/github.com/liuchaoren/passphoto/test_data/test.JPG")
-	img := ReadJpg(testImagePath)
-	fmt.Println(img.Bounds())
+	ReadJpg(testImagePath)
 }
