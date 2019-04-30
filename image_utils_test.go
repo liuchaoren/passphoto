@@ -26,3 +26,7 @@ func TestReadJpg(t *testing.T) {
 		"src/github.com/liuchaoren/passphoto/test_data/test.JPG")
 	ReadJpg(testImagePath)
 }
+
+func TestCrop(t *testing.T) {
+
+}
