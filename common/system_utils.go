@@ -37,9 +37,16 @@ func ReadConfig(config string) map[string]interface{} {
 
 // ExportFolder returns the folder to export file
 func ExportFolder() string {
-
 	gopath := GoPath()
-	imagePath := filepath.Join(gopath, "src", "github.com",
+	exportPath := filepath.Join(gopath, "src", "github.com",
 		"liuchaoren", "passphoto", "export_data")
-	return imagePath
+	return exportPath
+}
+
+// TestDataFolder returns the folder for test data
+func TestDataFolder() string {
+	gopath := GoPath()
+	testDataFolderPath := filepath.Join(gopath, "src", "github.com",
+		"liuchaoren", "passphoto", "test_data")
+	return testDataFolderPath
 }

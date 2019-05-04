@@ -1,17 +1,18 @@
 package main
 
 import (
-	"os"
 	"path/filepath"
 
 	"github.com/liuchaoren/passphoto"
+	"github.com/liuchaoren/passphoto/common"
 )
 
 func main() {
-	gopath := os.Getenv("GOPATH")
-	inputImagePath := filepath.Join(gopath,
-		"src/github.com/liuchaoren/passphoto/test_data/test.JPG")
-
-	passphoto.MergePhoto(inputImagePath)
-
+	originalHeadTop, originalHeadBottom, originalCenterFromLeft := common.MeasureImageOnScreen()
+	inputImagePath := filepath.Join(common.TestDataFolder(), "original.jpg")
+	croppedImageName := filepath.Join(common.ExportFolder(), "test_crop.jpg")
+	readyToPrintImageName := filepath.Join(common.ExportFolder(), "ready_to_print.jpg")
+	img := passphoto.ReadImage(inputImagePath)
+	passphoto.CropAndSaveJpg(img, originalHeadTop, originalHeadBottom, originalCenterFromLeft, croppedImageName, 100)
+	passphoto.OutputPhotoForPrint(croppedImageName, readyToPrintImageName, 100)
 }

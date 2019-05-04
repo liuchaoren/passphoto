@@ -4,7 +4,6 @@ import (
 	"image"
 	"image/color"
 	"image/jpeg"
-	"path/filepath"
 
 	// need jpeg to decode
 	_ "image/jpeg"
@@ -16,6 +15,7 @@ import (
 
 const (
 	cropConfigFileName string = "crop.json"
+	jgpQuality         int    = 80
 )
 
 // GetCanvas generates a white rectangle canvas
@@ -34,8 +34,8 @@ func GetCanvas(width, height int) *image.RGBA {
 	return img
 }
 
-// ReadJpg reads a jpg image
-func ReadJpg(path string) image.Image {
+// ReadImage reads a jpg image
+func ReadImage(path string) *image.RGBA {
 
 	reader, err := os.Open(path)
 	if err != nil {
@@ -46,14 +46,21 @@ func ReadJpg(path string) image.Image {
 	if err != nil {
 		log.Fatal(err)
 	}
-	return m
+
+	mRGBA := image.NewRGBA(m.Bounds())
+	width, height := mRGBA.Bounds().Dx(), mRGBA.Bounds().Dy()
+	for i := 0; i < width; i++ {
+		for j := 0; j < height; j++ {
+			mRGBA.Set(i, j, m.At(i, j))
+		}
+	}
+	return mRGBA
 }
 
 // WriteJpg writes an image to jpg file
 func WriteJpg(img image.Image, path string, quality int) {
-	imagePath := filepath.Join(common.ExportFolder(), path)
 
-	f, err := os.Create(imagePath)
+	f, err := os.Create(path)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -68,9 +75,20 @@ func ImageSize(img image.Image) (int, int) {
 	return width, height
 }
 
-// caculate how to cut the four edges
+// caculate how to cut the four edges.
+//
+// Args:
+//	originalHeadTop: percentage of the position of head top from image top edge
+//	originalHeadBottom: percentage of the position of head bottom from image top edge
+//	originalCenterFromLeft: percentage of the position of head center from image left edge
+//	originalWidth, originalHeight: width, height of the original image.
+//
+// Returns:
+//	cutLeft, cutRight: position to cut on left/right side, counting from the left edge.
+//	cutTop, cutBottom: position to cut on top/bottom side, counting from the top edge.
 func calculateHowToCrop(originalHeadTop, originalHeadBottom,
-	originalCenterFromLeft float64, originalWidth, originalHeight int) (float64, float64, float64, float64) {
+	originalCenterFromLeft float64, originalWidth, originalHeight int) (
+	int, int, int, int) {
 
 	cropConfig := common.ReadConfig(cropConfigFileName)
 	headTop := cropConfig["head_top"].(float64)
@@ -82,37 +100,14 @@ func calculateHowToCrop(originalHeadTop, originalHeadBottom,
 	squareSideLength := int((cutBottom - cutTop) * float64(originalHeight))
 	cutLeft := originalCenterFromLeft - (float64(squareSideLength) / float64(2) / float64(originalWidth))
 	cutRight := originalCenterFromLeft + (float64(squareSideLength) / float64(2) / float64(originalWidth))
-	return cutLeft, cutRight, cutTop, cutBottom
-}
 
-// Crop crops image given the vertical position of head top, head bottom
-// and horiental position of head cener
-func Crop(img image.Image, originalHeadTop, orginalHeadBottom,
-	originalCenterFromLeft float64) image.Image {
-	width, height := ImageSize(img)
-	cutLeft, cutRight, cutTop, cutBottom := calculateHowToCrop(originalHeadTop,
-		orginalHeadBottom, originalCenterFromLeft, width, height)
-	return crop(img, cutLeft, cutRight, cutTop, cutBottom)
-}
-
-// crop acutall does the crop and returns the cropped image
-func crop(img image.Image, cutLeft, cutRight,
-	cutTop, cutBottom float64) image.Image {
-	w, h := ImageSize(img)
-	imgRGBA, ok := img.(*image.RGBA)
-	if !ok {
-		log.Fatal("cannot convert to RGBA image")
-	}
-
-	leftPixel := int(float64(w) * cutLeft)
-	rightPixel := int(float64(w) * cutRight)
-	topPixel := int(float64(h) * cutTop)
-	bottomPixel := int(float64(h) * cutBottom)
+	leftPixel := int(float64(originalWidth) * cutLeft)
+	rightPixel := int(float64(originalWidth) * cutRight)
+	topPixel := int(float64(originalHeight) * cutTop)
+	bottomPixel := int(float64(originalHeight) * cutBottom)
 
 	tmpWidth := rightPixel - leftPixel
 	tmpHeight := bottomPixel - topPixel
-
-	var squareSideLength int
 
 	if tmpWidth > tmpHeight {
 		squareSideLength = tmpWidth
@@ -123,6 +118,40 @@ func crop(img image.Image, cutLeft, cutRight,
 	rightPixel = leftPixel + squareSideLength
 	bottomPixel = topPixel + squareSideLength
 
+	return leftPixel, rightPixel, topPixel, bottomPixel
+}
+
+// Crop crops image given the vertical position of head top, head bottom
+// and horiental position of head cener
+//
+// Args:
+// 	img: image to cut
+//	originalHeadTop: percentage of the position of head top from image top edge
+//	originalHeadBottom: percentage of the position of head bottom from image top edge
+//	originalCenterFromLeft: percentage of the position of head center from image left edge
+func Crop(img image.Image, originalHeadTop, orginalHeadBottom,
+	originalCenterFromLeft float64) image.Image {
+	width, height := ImageSize(img)
+	leftPixel, rightPixel, topPixel, bottomPixel := calculateHowToCrop(originalHeadTop,
+		orginalHeadBottom, originalCenterFromLeft, width, height)
+	return crop(img, leftPixel, rightPixel, topPixel, bottomPixel)
+}
+
+// CropAndSaveJpg crops the image and persist on disk
+func CropAndSaveJpg(img image.Image, originalHeadTop, orginalHeadBottom,
+	originalCenterFromLeft float64, outputPath string, quality int) {
+	cropedImage := Crop(img, originalHeadTop, orginalHeadBottom, originalCenterFromLeft)
+	WriteJpg(cropedImage, outputPath, quality)
+}
+
+// crop acutally does the crop and returns the cropped image
+func crop(img image.Image, leftPixel, rightPixel,
+	topPixel, bottomPixel int) image.Image {
+	imgRGBA, ok := img.(*image.RGBA)
+	if !ok {
+		log.Fatal("cannot convert to RGBA image")
+	}
+
 	upLeft := image.Point{leftPixel, topPixel}
 	downRight := image.Point{rightPixel, bottomPixel}
 	subImage := imgRGBA.SubImage(image.Rectangle{upLeft, downRight})
@@ -130,9 +159,9 @@ func crop(img image.Image, cutLeft, cutRight,
 }
 
 // OutputPhotoForPrint prepares for print on a 4x6 canvas
-func OutputPhotoForPrint(path string) {
+func OutputPhotoForPrint(inputPath, outputPath string, quality int) {
 
-	img := ReadJpg(path)
+	img := ReadImage(inputPath)
 
 	w, h := ImageSize(img)
 	if w != h {
@@ -142,7 +171,7 @@ func OutputPhotoForPrint(path string) {
 	canvas := GetCanvas(canvasWidth, canvasHeight)
 
 	updateCanvas := populatePixel(img, canvas)
-	WriteJpg(updateCanvas, "output.png", 90)
+	WriteJpg(updateCanvas, outputPath, quality)
 }
 
 // given the side length of passport photo, returns the 4x6 canvas size
@@ -152,16 +181,17 @@ func canvasSize(imageSideLength int) (int, int) {
 	return canvasWidth, canvasHeight
 }
 
-func populatePixel(img image.Image, canvas *image.RGBA) image.Image {
+func populatePixel(img image.Image, canvas image.Image) *image.RGBA {
 	w, _ := ImageSize(img)
 
 	widthOffset := w / 3
 	heightOffset := w / 2
+	canvasRGBA := canvas.(*image.RGBA)
 	for i := 0; i < w; i++ {
 		for j := 0; j < w; j++ {
 			xindex := i + widthOffset
 			yindex := j + heightOffset
-			canvas.Set(xindex, yindex, img.At(i, j))
+			canvasRGBA.Set(xindex, yindex, img.At(i, j))
 		}
 	}
 
@@ -170,8 +200,8 @@ func populatePixel(img image.Image, canvas *image.RGBA) image.Image {
 		for j := 0; j < w; j++ {
 			xindex := i + newWidthOffset
 			yindex := j + heightOffset
-			canvas.Set(xindex, yindex, img.At(i, j))
+			canvasRGBA.Set(xindex, yindex, img.At(i, j))
 		}
 	}
-	return canvas
+	return canvasRGBA
 }

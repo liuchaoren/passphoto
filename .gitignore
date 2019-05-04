@@ -1,0 +1,4 @@
+export_data/*
+test_data/*
+*/*.jpg
+*/*.JPG
