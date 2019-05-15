@@ -2,5 +2,4 @@
 generate passport photo
 
 # installation
-cd passport
-go install
+cd passport; go install
