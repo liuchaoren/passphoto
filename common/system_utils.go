@@ -2,6 +2,7 @@ package common
 
 import (
 	"encoding/json"
+	"go/build"
 	"io/ioutil"
 	"log"
 	"os"
@@ -10,7 +11,11 @@ import (
 
 // GoPath gets the GOPATH env
 func GoPath() string {
-	return os.Getenv("GOPATH")
+	gopath := os.Getenv("GOPATH")
+	if gopath == "" {
+		gopath = build.Default.GOPATH
+	}
+	return gopath
 }
 
 // ConfigFolder returns config folder path
